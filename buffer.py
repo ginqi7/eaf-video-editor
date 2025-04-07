@@ -19,11 +19,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import os
 import ffmpeg
 import subprocess
 import json
 from core.buffer import Buffer
-from core.utils import interactive, message_to_emacs
+from core.utils import interactive, message_to_emacs, eval_in_emacs, set_emacs_var
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtCore import QEvent, QRectF, QSizeF, Qt, QUrl
 from PyQt6.QtGui import QBrush, QColor, QPainter
@@ -131,16 +132,39 @@ class VideoPlayer(QWidget):
         self.video_seek_durcation = 10000 # in milliseconds
 
         self.clips = []
+        self.is_play_only_in_clips = False
+        self.url = None
 
         # QtCore.QTimer().singleShot(2000, self.hide_control_panel)
 
         self.graphics_view.viewport().installEventFilter(self)
+
+    def get_current_clip(self, position):
+        for clip in self.clips:
+            if len(clip) == 2 and position >= clip[0] and position <= clip[1]:
+                return clip
+
+    def get_next_clip(self, position):
+        for clip in self.clips:
+            if position < clip[0]:
+                return clip
+
 
     def update_video_progress(self, percent):
         self.media_player.setPosition(int(self.media_player.duration() * percent))
 
     def progress_change(self, position):
         self.progress_bar.update_progress(self.media_player.duration(), position)
+        if self.is_play_only_in_clips and not self.get_current_clip(position):
+            clip = self.get_next_clip(position)
+            target = self.media_player.duration()
+            if clip:
+                target = clip[0]
+            elif len(self.clips) > 0:
+                target = self.clips[0][0]
+
+            self.media_player.setPosition(target)
+
 
     def resizeEvent(self, event):
         self.video_item.setSize(QSizeF(event.size().width(), event.size().height()))
@@ -156,10 +180,27 @@ class VideoPlayer(QWidget):
         QWidget.resizeEvent(self, event)
 
     def play(self, url):
+        self.url = url
         self.media_player.setSource(QUrl.fromLocalFile(url))
         self.media_player.play()
         self.keyframes = self.get_keyframe_timestamps(url)
         self.progress_bar.keyframes = self.keyframes
+        set_emacs_var("eaf-video-editor--org-file", url+".org")
+
+    def generate_copy_url(self, original_url):
+        '''
+        Generate a new URL based on the provided file URL, with the filename changed to copy_original_filename.
+        Parameters:
+          - original_url (str): The original file URL
+
+        Returns:
+          - str: The newly generated URL
+        '''
+        directory, filename = os.path.split(original_url)
+        name, ext = os.path.splitext(filename)
+        new_filename = f"copy_{name}{ext}"
+        new_url = os.path.join(directory, new_filename)
+        return new_url
 
     def eventFilter(self, obj, event):
         if event.type() in [QEvent.Type.MouseButtonPress]:
@@ -188,7 +229,7 @@ class VideoPlayer(QWidget):
 
         frames = probe['frames']
         keyframes = [frame for frame in frames if frame.get('key_frame') == 1]
-        keyframe_timestamps = [float(frame['pts_time']) for frame in keyframes if 'pts_time' in frame]
+        keyframe_timestamps = [float(frame['pts_time']) * 1000 for frame in keyframes if 'pts_time' in frame]
         return keyframe_timestamps
         # return []
 
@@ -235,9 +276,46 @@ class VideoPlayer(QWidget):
             message_to_emacs(f'Add Clip Begin: {position}')
         else:
             self.clips[-1].append(position)
+            eval_in_emacs("eaf-video-editor--add-clip", self.clips[-1])
             message_to_emacs(f'Add Clip: {self.clips[-1]}')
 
         self.progress_bar.clips = self.clips
+        self.progress_bar.update()
+
+    @interactive
+    def toggle_play_clips(self):
+        self.is_play_only_in_clips = not self.is_play_only_in_clips
+
+    @interactive
+    def convert_clips_to_video(self):
+        '''
+        Trim and merge multiple segments from a specified video into a new one.
+        '''
+        if not self.url:
+            return
+        try:
+            # Store the stream for each segment
+            clip_streams = []
+
+            # Process Each Segment
+            for start_time, end_time in self.clips:
+                # Create input stream and trim.
+                start_time, end_time = start_time / 1000, end_time / 1000
+                stream = ffmpeg.input(self.url, ss=start_time, t=end_time - start_time)
+                clip_streams.append(stream)
+
+            message_to_emacs("Start export video clips.")
+            # Merge all segments
+            merged_stream = ffmpeg.concat(*clip_streams, v=1, a=1) # v=1 indicates a video stream, and a=1 indicates an audio stream.
+            # Output to new video file
+            output_video = self.generate_copy_url(self.url)
+            output = ffmpeg.output(merged_stream, output_video)
+            ffmpeg.run(output)
+            print(f"Successfully generated a new video.: {output_video}")
+            message_to_emacs(f"Successfully generated a new video.: {output_video}")
+
+        except ffmpeg.Error as e:
+            print(f"Error: {e.stderr.decode()}")
 
 
 class ControlPanel(QtWidgets.QGraphicsItem):
@@ -307,17 +385,21 @@ class ProgressBar(QWidget):
             for frame in self.keyframes:
                 painter.setPen(Qt.GlobalColor.gray)
                 painter.setBrush(QBrush(Qt.GlobalColor.gray))
-                x = int(self.width() * frame * 1000/ self.duration)
+                x = int(self.width() * frame / self.duration)
                 painter.drawLine(x, int(render_y), x, int(render_y) + int(self.render_height))
-            print(self.clips)
             for clip in self.clips:
                 if len(clip) == 2:
-                    print(clip)
                     painter.setPen(Qt.GlobalColor.gray)
                     painter.setBrush(QBrush(Qt.GlobalColor.gray))
                     x1 = int(self.width() * clip[0] / self.duration)
                     x2 = int(self.width() * clip[1] / self.duration)
                     painter.drawRect(x1, int(render_y), x2-x1, int(self.render_height))
+                else:
+                    painter.setPen(Qt.GlobalColor.green)
+                    painter.setBrush(QBrush(Qt.GlobalColor.green))
+                    x = int(self.width() * clip[0] / self.duration)
+                    painter.drawLine(x, int(render_y), x, int(render_y) + int(self.render_height))
+
 
             painter.setPen(Qt.GlobalColor.red)
             painter.setBrush(QBrush(Qt.GlobalColor.red))

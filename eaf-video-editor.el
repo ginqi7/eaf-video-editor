@@ -33,10 +33,21 @@
     ("k" . "increase_volume")
     ("f" . "toggle_fullscreen")
     ("r" . "restart")
-    ("c" . "clip_point"))
+    ("c" . "clip_point")
+    ("p" . "toggle_play_clips")
+    ("o" . "convert_clips_to_video"))
 
   "The keybinding of EAF Video Player."
   :type 'cons)
+
+(defvar eaf-video-editor--org-file nil)
+
+(defun eaf-video-editor--add-clip (begin end)
+  (print "fuck")
+  (with-current-buffer (find-file-noselect eaf-video-editor--org-file)
+    (goto-char (point-max))
+    (insert (format "\n* [[clip:%s-%s]]" begin end))
+    (save-buffer)))
 
 (add-to-list 'eaf-app-binding-alist '("video-editor" . eaf-video-editor-keybinding))
 

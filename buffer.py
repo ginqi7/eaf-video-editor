@@ -20,9 +20,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
-import ffmpeg
-import subprocess
-import json
 from core.buffer import Buffer
 from core.utils import interactive, message_to_emacs, eval_in_emacs, set_emacs_var
 from PyQt6 import QtCore, QtWidgets
@@ -31,6 +28,10 @@ from PyQt6.QtGui import QBrush, QColor, QPainter
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
 from PyQt6.QtWidgets import QGraphicsScene, QGraphicsView, QHBoxLayout, QVBoxLayout, QWidget
+# hack: add current dir path to sys.path for relative path import other modules.
+import sys
+sys.path.append(os.path.dirname(__file__))
+from ffmpeg_utils import get_keyframe_timestamps, convert_clips_to_video, get_video_info, get_video_resolution, export_elements_to_streams, export_streams
 
 
 class AppBuffer(Buffer):
@@ -91,7 +92,6 @@ class VideoPlayer(QWidget):
         self.is_button_press = False
 
         self.video_item = QGraphicsVideoItem()
-        self.keyframes = []
 
         self.panel_height = 60
         self.progress_bar_height = 60
@@ -131,11 +131,13 @@ class VideoPlayer(QWidget):
         self.video_need_replay = False
         self.video_seek_durcation = 10000 # in milliseconds
 
+        self.video_info = None
+        self.video_resolution = None
         self.clips = []
+        self.export_elements = []
         self.is_play_only_in_clips = False
+        self.loop_in_clip = None
         self.url = None
-
-        # QtCore.QTimer().singleShot(2000, self.hide_control_panel)
 
         self.graphics_view.viewport().installEventFilter(self)
 
@@ -155,6 +157,10 @@ class VideoPlayer(QWidget):
 
     def progress_change(self, position):
         self.progress_bar.update_progress(self.media_player.duration(), position)
+        if self.loop_in_clip:
+            if position < self.loop_in_clip[0] or position > self.loop_in_clip[1]:
+                self.media_player.setPosition(self.loop_in_clip[0])
+
         if self.is_play_only_in_clips and not self.get_current_clip(position):
             clip = self.get_next_clip(position)
             target = self.media_player.duration()
@@ -183,8 +189,10 @@ class VideoPlayer(QWidget):
         self.url = url
         self.media_player.setSource(QUrl.fromLocalFile(url))
         self.media_player.play()
-        self.keyframes = self.get_keyframe_timestamps(url)
-        self.progress_bar.keyframes = self.keyframes
+        self.video_info = get_video_info(url)
+        self.video_resolution = get_video_resolution(self.video_info)
+        keyframe_timestamps = get_keyframe_timestamps(self.video_info)
+        self.progress_bar.keyframes = keyframe_timestamps
         set_emacs_var("eaf-video-editor--org-file", url+".org")
 
     def generate_copy_url(self, original_url):
@@ -205,34 +213,12 @@ class VideoPlayer(QWidget):
     def eventFilter(self, obj, event):
         if event.type() in [QEvent.Type.MouseButtonPress]:
             self.is_button_press = True
+            self.loop_in_clip = None
             self.media_player.pause()
         elif event.type() in [QEvent.Type.MouseButtonRelease]:
             self.is_button_press = False
 
-        # if event.type() == QEvent.Type.MouseMove:
-        #     if event.position().y() > self.height() - self.progress_bar_height:
-        #         self.show_control_panel()
-        #     else:
-        #         self.hide_control_panel()
-
         return False
-
-    def get_keyframe_timestamps(self, video_path):
-        p = subprocess.Popen(
-            "ffprobe -show_frames -select_streams v -skip_frame nokey -of json " + video_path,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=True)
-        out, err = p.communicate()
-        p.wait()
-        probe = json.loads(out.decode('utf-8'))
-
-        frames = probe['frames']
-        keyframes = [frame for frame in frames if frame.get('key_frame') == 1]
-        keyframe_timestamps = [float(frame['pts_time']) * 1000 for frame in keyframes if 'pts_time' in frame]
-        return keyframe_timestamps
-        # return []
-
 
     def hide_control_panel(self):
         self.control_panel.hide()
@@ -287,36 +273,29 @@ class VideoPlayer(QWidget):
         self.is_play_only_in_clips = not self.is_play_only_in_clips
 
     @interactive
-    def convert_clips_to_video(self):
-        '''
-        Trim and merge multiple segments from a specified video into a new one.
-        '''
+    def loop_play_in_clip(self, clip_begin, clip_end):
+        self.loop_in_clip = (clip_begin, clip_end)
+
+    @interactive
+    def update_clips(self, clips):
+        self.clips = clips
+        self.progress_bar.clips = clips
+
+    @interactive
+    def update_export_elements(self, elements):
+        self.export_elements = elements
+
+
+    @interactive
+    def export(self):
         if not self.url:
             return
-        try:
-            # Store the stream for each segment
-            clip_streams = []
-
-            # Process Each Segment
-            for start_time, end_time in self.clips:
-                # Create input stream and trim.
-                start_time, end_time = start_time / 1000, end_time / 1000
-                stream = ffmpeg.input(self.url, ss=start_time, t=end_time - start_time)
-                clip_streams.append(stream)
-
-            message_to_emacs("Start export video clips.")
-            # Merge all segments
-            merged_stream = ffmpeg.concat(*clip_streams, v=1, a=1) # v=1 indicates a video stream, and a=1 indicates an audio stream.
-            # Output to new video file
-            output_video = self.generate_copy_url(self.url)
-            output = ffmpeg.output(merged_stream, output_video)
-            ffmpeg.run(output)
-            print(f"Successfully generated a new video.: {output_video}")
-            message_to_emacs(f"Successfully generated a new video.: {output_video}")
-
-        except ffmpeg.Error as e:
-            print(f"Error: {e.stderr.decode()}")
-
+        message_to_emacs("Start export ...")
+        streams = export_elements_to_streams(self.export_elements, self.url, self.video_resolution)
+        output = self.generate_copy_url(self.url)
+        export_streams(output, streams)
+        convert_clips_to_video(self.url, output, self.clips)
+        message_to_emacs(f"Successfully generated a new video.: {output}")
 
 class ControlPanel(QtWidgets.QGraphicsItem):
     def __init__(self, parent=None):
@@ -371,37 +350,51 @@ class ProgressBar(QWidget):
         if self.is_press:
             self.progress_changed.emit(event.position().x() * 1.0 / self.width())
 
-    def paintEvent(self, event):
-        painter = QPainter(self)
-
-        render_y = (self.height() - self.render_height) / 2
+    def paintBar(self, painter):
+        render_y = int((self.height() - self.render_height) / 2)
 
         painter.setPen(self.background_color)
         painter.setBrush(self.background_color)
 
-        painter.drawRect(0, int(render_y), int(self.width()), int(self.render_height))
+        painter.drawRect(0, render_y, int(self.width()), int(self.render_height))
 
-        if self.duration > 0:
-            for frame in self.keyframes:
+    def paintKeyFrameLines(self, painter):
+        render_y = int((self.height() - self.render_height) / 2)
+
+        for frame in self.keyframes:
+            painter.setPen(Qt.GlobalColor.gray)
+            painter.setBrush(QBrush(Qt.GlobalColor.gray))
+            x = int(self.width() * frame / self.duration)
+            painter.drawLine(x, render_y, x, render_y + int(self.render_height))
+
+    def paintClips(self, painter):
+        render_y = int((self.height() - self.render_height) / 2)
+        for clip in self.clips:
+            if len(clip) == 2:
                 painter.setPen(Qt.GlobalColor.gray)
                 painter.setBrush(QBrush(Qt.GlobalColor.gray))
-                x = int(self.width() * frame / self.duration)
-                painter.drawLine(x, int(render_y), x, int(render_y) + int(self.render_height))
-            for clip in self.clips:
-                if len(clip) == 2:
-                    painter.setPen(Qt.GlobalColor.gray)
-                    painter.setBrush(QBrush(Qt.GlobalColor.gray))
-                    x1 = int(self.width() * clip[0] / self.duration)
-                    x2 = int(self.width() * clip[1] / self.duration)
-                    painter.drawRect(x1, int(render_y), x2-x1, int(self.render_height))
-                else:
-                    painter.setPen(Qt.GlobalColor.green)
-                    painter.setBrush(QBrush(Qt.GlobalColor.green))
-                    x = int(self.width() * clip[0] / self.duration)
-                    painter.drawLine(x, int(render_y), x, int(render_y) + int(self.render_height))
+                x1 = int(self.width() * clip[0] / self.duration)
+                x2 = int(self.width() * clip[1] / self.duration)
+                painter.drawRect(x1, render_y, x2-x1, int(self.render_height))
+            else:
+                painter.setPen(Qt.GlobalColor.green)
+                painter.setBrush(QBrush(Qt.GlobalColor.green))
+                x = int(self.width() * clip[0] / self.duration)
+                painter.drawLine(x, render_y, x, render_y + int(self.render_height))
+
+    def paintCurrentLine(self, painter):
+        render_y = int((self.height() - self.render_height) / 2)
+        painter.setPen(Qt.GlobalColor.red)
+        painter.setBrush(QBrush(Qt.GlobalColor.red))
+        x = int(self.width() * self.position / self.duration)
+        painter.drawLine(x, render_y, x, render_y + int(self.render_height))
 
 
-            painter.setPen(Qt.GlobalColor.red)
-            painter.setBrush(QBrush(Qt.GlobalColor.red))
-            x = int(self.width() * self.position / self.duration)
-            painter.drawLine(x, int(render_y), x, int(render_y) + int(self.render_height))
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        self.paintBar(painter)
+
+        if self.duration > 0:
+            self.paintKeyFrameLines(painter)
+            self.paintClips(painter)
+            self.paintCurrentLine(painter)

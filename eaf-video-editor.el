@@ -32,7 +32,8 @@
     ("j" . "decrease_volume")
     ("k" . "increase_volume")
     ("f" . "toggle_fullscreen")
-    ("r" . "restart"))
+    ("r" . "restart")
+    ("c" . "clip_point"))
 
   "The keybinding of EAF Video Player."
   :type 'cons)

@@ -130,6 +130,8 @@ class VideoPlayer(QWidget):
         self.video_need_replay = False
         self.video_seek_durcation = 10000 # in milliseconds
 
+        self.clips = []
+
         # QtCore.QTimer().singleShot(2000, self.hide_control_panel)
 
         self.graphics_view.viewport().installEventFilter(self)
@@ -225,6 +227,19 @@ class VideoPlayer(QWidget):
     def restart(self):
         self.media_player.setPosition(0)
 
+    @interactive
+    def clip_point(self):
+        position = self.media_player.position()
+        if len(self.clips) == 0 or len(self.clips[-1]) == 2:
+            self.clips.append([position])
+            message_to_emacs(f'Add Clip Begin: {position}')
+        else:
+            self.clips[-1].append(position)
+            message_to_emacs(f'Add Clip: {self.clips[-1]}')
+
+        self.progress_bar.clips = self.clips
+
+
 class ControlPanel(QtWidgets.QGraphicsItem):
     def __init__(self, parent=None):
         super(ControlPanel, self).__init__(parent)
@@ -259,6 +274,7 @@ class ProgressBar(QWidget):
         self.is_press = False
         self.render_height = 40
         self.keyframes = []
+        self.clips = []
 
     def update_progress(self, duration, position):
         self.position = position
@@ -288,19 +304,22 @@ class ProgressBar(QWidget):
         painter.drawRect(0, int(render_y), int(self.width()), int(self.render_height))
 
         if self.duration > 0:
-            # painter.setPen(self.foreground_color)
-            # painter.setBrush(self.foreground_color)
             for frame in self.keyframes:
                 painter.setPen(Qt.GlobalColor.gray)
                 painter.setBrush(QBrush(Qt.GlobalColor.gray))
                 x = int(self.width() * frame * 1000/ self.duration)
-                print(f'b{frame}')
                 painter.drawLine(x, int(render_y), x, int(render_y) + int(self.render_height))
+            print(self.clips)
+            for clip in self.clips:
+                if len(clip) == 2:
+                    print(clip)
+                    painter.setPen(Qt.GlobalColor.gray)
+                    painter.setBrush(QBrush(Qt.GlobalColor.gray))
+                    x1 = int(self.width() * clip[0] / self.duration)
+                    x2 = int(self.width() * clip[1] / self.duration)
+                    painter.drawRect(x1, int(render_y), x2-x1, int(self.render_height))
 
             painter.setPen(Qt.GlobalColor.red)
             painter.setBrush(QBrush(Qt.GlobalColor.red))
             x = int(self.width() * self.position / self.duration)
-            print(f'a{self.position}')
             painter.drawLine(x, int(render_y), x, int(render_y) + int(self.render_height))
-
-            # painter.drawRect(0, int(render_y), int(self.width() * self.position / self.duration), int(self.render_height))

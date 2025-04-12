@@ -1,0 +1,21 @@
+#+title: EAF Video Editor
+
+A simple video editor in Emacs.
+
+* Features
+- Display keyframes in the video.
+- Trim the videos into clips.
+- Sync editor information with an Org mode file.
+- Play the video only in the clips.
+- Add some pure text frames
+- Export text and clip frames to a new video.
+
+* Load application
+
+[[https://github.com/emacs-eaf/emacs-application-framework#install][Install EAF]] first, then add below code in your emacs config:
+#+begin_src emacs-lisp
+  (add-to-list 'load-path "~/.emacs.d/site-lisp/emacs-application-framework/")
+  (add-to-list 'load-path "~/.emacs.d/site-lisp/eaf-video-editor/")
+  (require 'eaf)
+  (require 'eaf-video-editor)
+#+end_src

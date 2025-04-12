@@ -31,7 +31,8 @@ from PyQt6.QtWidgets import QGraphicsScene, QGraphicsView, QHBoxLayout, QVBoxLay
 # hack: add current dir path to sys.path for relative path import other modules.
 import sys
 sys.path.append(os.path.dirname(__file__))
-from ffmpeg_utils import get_keyframe_timestamps, convert_clips_to_video, get_video_info, get_video_resolution, export_elements_to_streams, export_streams
+from elements import EditElements
+from ffmpeg_utils import get_keyframe_timestamps,  get_video_info, get_video_resolution, export_elements_to_streams, export_streams
 
 
 class AppBuffer(Buffer):
@@ -133,8 +134,7 @@ class VideoPlayer(QWidget):
 
         self.video_info = None
         self.video_resolution = None
-        self.clips = []
-        self.export_elements = []
+        self.edit_elements : EditElements = EditElements()
         self.is_play_only_in_clips = False
         self.loop_in_clip = None
         self.url = None
@@ -142,15 +142,14 @@ class VideoPlayer(QWidget):
         self.graphics_view.viewport().installEventFilter(self)
 
     def get_current_clip(self, position):
-        for clip in self.clips:
-            if len(clip) == 2 and position >= clip[0] and position <= clip[1]:
+        for clip in self.edit_elements.get_clips():
+            if clip.end and position >= clip.begin and position <= clip.end:
                 return clip
 
     def get_next_clip(self, position):
-        for clip in self.clips:
-            if position < clip[0]:
+        for clip in self.edit_elements.get_clips():
+            if position < clip.begin:
                 return clip
-
 
     def update_video_progress(self, percent):
         self.media_player.setPosition(int(self.media_player.duration() * percent))
@@ -165,9 +164,11 @@ class VideoPlayer(QWidget):
             clip = self.get_next_clip(position)
             target = self.media_player.duration()
             if clip:
-                target = clip[0]
-            elif len(self.clips) > 0:
-                target = self.clips[0][0]
+                target = clip.begin
+            else:
+                first_clip = self.edit_elements.first_clip()
+                if first_clip:
+                    target = first_clip.begin
 
             self.media_player.setPosition(target)
 
@@ -257,33 +258,35 @@ class VideoPlayer(QWidget):
     @interactive
     def clip_point(self):
         position = self.media_player.position()
-        if len(self.clips) == 0 or len(self.clips[-1]) == 2:
-            self.clips.append([position])
+        last_clip = self.edit_elements.last_clip()
+        if not last_clip or last_clip.end:
+            self.edit_elements.add_clip(self.url, position, None)
             message_to_emacs(f'Add Clip Begin: {position}')
-        else:
-            self.clips[-1].append(position)
-            eval_in_emacs("eaf-video-editor--add-clip", self.clips[-1])
-            message_to_emacs(f'Add Clip: {self.clips[-1]}')
+        if last_clip and not last_clip.end:
+            last_clip.end = position
+            eval_in_emacs("eaf-video-editor--add-clip", last_clip.to_simple())
+            message_to_emacs(f'Add Clip: {last_clip.range_str()}')
 
-        self.progress_bar.clips = self.clips
+        self.progress_bar.clips = self.edit_elements.get_clips()
         self.progress_bar.update()
 
     @interactive
     def toggle_play_clips(self):
         self.is_play_only_in_clips = not self.is_play_only_in_clips
+        message_to_emacs(f'Only Play Clips: {self.is_play_only_in_clips}')
+
 
     @interactive
     def loop_play_in_clip(self, clip_begin, clip_end):
         self.loop_in_clip = (clip_begin, clip_end)
 
-    @interactive
     def update_clips(self, clips):
-        self.clips = clips
         self.progress_bar.clips = clips
 
     @interactive
-    def update_export_elements(self, elements):
-        self.export_elements = elements
+    def update_edit_elements(self, elements):
+        self.edit_elements.from_emacs(self.url, elements)
+        self.update_clips(self.edit_elements.get_clips())
 
 
     @interactive
@@ -291,10 +294,10 @@ class VideoPlayer(QWidget):
         if not self.url:
             return
         message_to_emacs("Start export ...")
-        streams = export_elements_to_streams(self.export_elements, self.url, self.video_resolution)
+        streams = export_elements_to_streams(self.edit_elements, self.url, self.video_resolution)
         output = self.generate_copy_url(self.url)
         export_streams(output, streams)
-        convert_clips_to_video(self.url, output, self.clips)
+        # convert_clips_to_video(self.url, output, self.clips)
         message_to_emacs(f"Successfully generated a new video.: {output}")
 
 class ControlPanel(QtWidgets.QGraphicsItem):
@@ -370,16 +373,16 @@ class ProgressBar(QWidget):
     def paintClips(self, painter):
         render_y = int((self.height() - self.render_height) / 2)
         for clip in self.clips:
-            if len(clip) == 2:
+            if clip.end:
                 painter.setPen(Qt.GlobalColor.gray)
                 painter.setBrush(QBrush(Qt.GlobalColor.gray))
-                x1 = int(self.width() * clip[0] / self.duration)
-                x2 = int(self.width() * clip[1] / self.duration)
+                x1 = int(self.width() * clip.begin / self.duration)
+                x2 = int(self.width() * clip.end / self.duration)
                 painter.drawRect(x1, render_y, x2-x1, int(self.render_height))
             else:
                 painter.setPen(Qt.GlobalColor.green)
                 painter.setBrush(QBrush(Qt.GlobalColor.green))
-                x = int(self.width() * clip[0] / self.duration)
+                x = int(self.width() * clip.begin / self.duration)
                 painter.drawLine(x, render_y, x, render_y + int(self.render_height))
 
     def paintCurrentLine(self, painter):

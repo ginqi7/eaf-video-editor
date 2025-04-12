@@ -57,7 +57,11 @@ def export_streams(output_path, streams):
         ffmpeg.run(output)
 
 def get_video_info(video_path):
-        return ffmpeg.probe(video_path, show_frames=None, select_streams="v", skip_frame="nokey", of="json")
+        try:
+                return ffmpeg.probe(video_path, show_frames=None, select_streams="v", skip_frame="nokey", of="json")
+        except Exception as e:
+                print(e.stderr)
+
 
 def get_keyframe_timestamps(info):
         frames = info['frames']

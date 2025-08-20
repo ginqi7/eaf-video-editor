@@ -30,6 +30,7 @@ from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
 from PyQt6.QtWidgets import QGraphicsScene, QGraphicsView, QHBoxLayout, QVBoxLayout, QWidget
 # hack: add current dir path to sys.path for relative path import other modules.
 import sys
+
 sys.path.append(os.path.dirname(__file__))
 from elements import EditElements
 from ffmpeg_utils import get_keyframe_timestamps,  get_video_info, get_video_resolution, export_elements_to_streams, export_streams
@@ -294,7 +295,7 @@ class VideoPlayer(QWidget):
         if not self.url:
             return
         message_to_emacs("Start export ...")
-        streams = export_elements_to_streams(self.edit_elements, self.url, self.video_resolution)
+        streams = export_elements_to_streams(self.edit_elements.edit_elements, self.url, self.video_resolution)
         output = self.generate_copy_url(self.url)
         export_streams(output, streams)
         # convert_clips_to_video(self.url, output, self.clips)

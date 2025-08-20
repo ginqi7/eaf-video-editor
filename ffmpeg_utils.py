@@ -21,6 +21,7 @@
 
 import ffmpeg
 import os
+import elements
 
 def image_to_stream(image):
         return ffmpeg.input(image, loop=1, t=10, framerate=30)
@@ -36,10 +37,10 @@ def export_elements_to_streams(elements, input, resolution):
 
 def export_element_to_stream(element, input, resolution):
         print(element)
-        if element[0] == "eaf-ve-clip":
-                return clips_to_video(input, element[1])
-        elif element[0] == "eaf-ve-text":
-                return text_to_stream(element[1][0], element[1][1], resolution)
+        if isinstance(element, elements.EditClip):
+                return clips_to_video(input, [element.begin, element.begin])
+        elif isinstance(element, elements.EditText):
+                return text_to_stream(element.text, element.duration, resolution)
 
 
 def clips_to_video(input, clip):

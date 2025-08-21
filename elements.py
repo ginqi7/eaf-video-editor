@@ -34,6 +34,13 @@ class EditText(EditElement):
         self.duration: int = duration
 
 
+class EditImage(EditElement):
+    def __init__(self, file: str, duration: int):
+        EditElement.__init__(self, EditElementType.IMAGE)
+        self.file: str = file
+        self.duration: int = duration
+
+
 class EditElements:
     def __init__(self):
         self.edit_elements: list[EditElement] = []
@@ -53,6 +60,9 @@ class EditElements:
     def add_text(self, text: str, duration: int):
         self.edit_elements.append(EditText(text, duration))
 
+    def add_image(self, file: str, duration: int):
+        self.edit_elements.append(EditImage(file, duration))
+
     def last_clip(self):
         clips = self.get_clips()
         if clips:
@@ -63,10 +73,10 @@ class EditElements:
         if clips:
             return clips[0]
 
-    def from_emacs(self, video_file: str, elments):
+    def from_emacs(self, video_file: str, elements):
         # [['eaf-ve-clip', [28062, 36310]], ['eaf-ve-text', ['List Delete or Install a Formula', 1]], ['eaf-ve-clip', [41344, 50448]], ['eaf-ve-clip', [54518, 59552]], ['eaf-ve-clip', [71656, 79903]], ['eaf-ve-text', ['List Installed Taps', 1]], ['eaf-ve-clip', [83116, 87294]], ['eaf-ve-text', ['Operations in Tap', 1]], ['eaf-ve-clip', [99933, 109251]], ['eaf-ve-clip', [88043, 98112]], ['eaf-ve-clip', [112571, 119319]]]
         self.edit_elements = []
-        for element in elments:
+        for element in elements:
             type = EditElementType(element[0])
             match type:
                 case EditElementType.CLIP:
@@ -74,6 +84,6 @@ class EditElements:
                 case EditElementType.TEXT:
                     self.add_text(element[1][0], element[1][1])
                 case EditElementType.IMAGE:
-                    print("Not Support")
+                    self.add_image(element[1][0], element[1][1])
                 case _:
                     print("Not Support")

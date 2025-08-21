@@ -53,6 +53,29 @@
                          :follow #'eaf-video-editor-link-follow-function)
 
 (org-link-set-parameters "eaf-ve-text")
+(org-link-set-parameters "eaf-ve-image"
+                         :complete #'eaf-ve-image-org-link-complete-file)
+
+
+(defun eaf-ve-image-org-link-complete-file (&optional arg)
+  "Create a file link using completion.
+With optional ARG \\='(16), abbreviate the file name in the link."
+  (let ((file (read-file-name "eaf-ve-image: "))
+        (pwd (file-name-as-directory (expand-file-name ".")))
+        (pwd1 (file-name-as-directory (abbreviate-file-name
+                                       (expand-file-name ".")))))
+    (cond ((equal arg '(16))
+           (concat "eaf-ve-image:"
+                   (abbreviate-file-name (expand-file-name file))))
+          ((string-match
+            (concat "^" (regexp-quote pwd1) "\\(.+\\)") file)
+           (concat "eaf-ve-image:" (match-string 1 file)))
+          ((string-match
+            (concat "^" (regexp-quote pwd) "\\(.+\\)")
+            (expand-file-name file))
+           (concat "eaf-ve-image:"
+                   (match-string 1 (expand-file-name file))))
+          (t (concat "eaf-ve-image:" file)))))
 
 (defun eaf-video-editor-buffer-id ()
   "Get eaf buffer id from org mode file."
@@ -93,12 +116,19 @@
         (path (org-element-property :path link)))
     (pcase type
       ("eaf-ve-clip" (list type (eaf-video-editor-link-path-to-clip path)))
-      ("eaf-ve-text" (list type (eaf-video-editor-link-path-to-text path))))))
+      ("eaf-ve-text" (list type (eaf-video-editor-link-path-to-text path)))
+      ("eaf-ve-image" (list type (eaf-video-editor-link-path-to-image path))))))
 
 (defun eaf-video-editor-link-path-to-text (path)
   "Convert link path to edit text."
   (let ((lst (string-split path ":")))
     (list (nth 0 lst) (string-to-number (nth 1 lst)))))
+
+(defun eaf-video-editor-link-path-to-image (path)
+  "Convert link path to edit image."
+  (let ((lst (string-split path ":")))
+    (list (expand-file-name (nth 0 lst)) (string-to-number (nth 1 lst)))))
+
 
 
 (defun eaf-video-editor-org-elements ()

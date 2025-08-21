@@ -24,11 +24,13 @@ import os
 import elements
 
 
-def image_to_stream(image):
-    return ffmpeg.input(image, loop=1, t=10, framerate=30)
+def image_to_stream(file: str, time: int, resolution: list[int]):
+    width, height = resolution
+    input_stream = ffmpeg.input(file, loop=1, t=time, framerate=30)
+    return input_stream.filter("scale", width, height)
 
 
-def text_to_stream(text: str, time: int, resolution: int):
+def text_to_stream(text: str, time: int, resolution: list[int]):
     width, height = resolution
     return ffmpeg.input(
         f"color=c=white:s={width}x{height}:r=30,drawtext=text='{text}':fontcolor=black:fontsize=50:x=(w-tw)/2:y=(h-th)/2",
@@ -37,18 +39,21 @@ def text_to_stream(text: str, time: int, resolution: int):
     )
 
 
-def export_elements_to_streams(elements, input, resolution):
+def export_elements_to_streams(
+    elements: list[elements.EditElement], input: str, resolution: list[int]
+):
     return [
         export_element_to_stream(element, input, resolution) for element in elements
     ]
 
 
 def export_element_to_stream(element, input, resolution):
-    print(element)
     if isinstance(element, elements.EditClip):
         return clips_to_video(input, [element.begin, element.begin])
     elif isinstance(element, elements.EditText):
         return text_to_stream(element.text, element.duration, resolution)
+    elif isinstance(element, elements.EditImage):
+        return image_to_stream(element.file, element.duration, resolution)
 
 
 def clips_to_video(input, clip):

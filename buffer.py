@@ -20,6 +20,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import threading
 from core.buffer import Buffer
 from core.utils import interactive, message_to_emacs, eval_in_emacs, set_emacs_var
 from PyQt6 import QtCore, QtWidgets
@@ -27,13 +28,26 @@ from PyQt6.QtCore import QEvent, QRectF, QSizeF, Qt, QUrl
 from PyQt6.QtGui import QBrush, QColor, QPainter
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QGraphicsVideoItem
-from PyQt6.QtWidgets import QGraphicsScene, QGraphicsView, QHBoxLayout, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import (
+    QGraphicsScene,
+    QGraphicsView,
+    QHBoxLayout,
+    QVBoxLayout,
+    QWidget,
+)
+
 # hack: add current dir path to sys.path for relative path import other modules.
 import sys
 
 sys.path.append(os.path.dirname(__file__))
 from elements import EditElements
-from ffmpeg_utils import get_keyframe_timestamps,  get_video_info, get_video_resolution, export_elements_to_streams, export_streams
+from ffmpeg_utils import (
+    get_keyframe_timestamps,
+    get_video_info,
+    get_video_resolution,
+    export_elements_to_streams,
+    export_streams,
+)
 
 
 class AppBuffer(Buffer):
@@ -42,14 +56,19 @@ class AppBuffer(Buffer):
 
         self.background_color = QColor(0, 0, 0)
 
-        self.add_widget(VideoPlayer(self.theme_background_color, self.theme_foreground_color))
+        self.add_widget(
+            VideoPlayer(self.theme_background_color, self.theme_foreground_color)
+        )
         self.buffer_widget.play(url)
 
         self.build_all_methods(self.buffer_widget)
 
     def all_views_hide(self):
         # Pause video before all views hdie, otherwise will got error "Internal data stream error".
-        if self.buffer_widget.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+        if (
+            self.buffer_widget.media_player.playbackState()
+            == QMediaPlayer.PlaybackState.PlayingState
+        ):
             self.buffer_widget.media_player.pause()
             self.buffer_widget.video_need_replay = True
 
@@ -65,7 +84,10 @@ class AppBuffer(Buffer):
         self.buffer_widget.media_player.setPosition(position)
 
     def toggle_play(self):
-        if self.buffer_widget.media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+        if (
+            self.buffer_widget.media_player.playbackState()
+            == QMediaPlayer.PlaybackState.PlayingState
+        ):
             self.buffer_widget.media_player.pause()
             self.buffer_widget.video_need_replay = False
         else:
@@ -77,8 +99,8 @@ class AppBuffer(Buffer):
 
         super().destroy_buffer()
 
-class VideoPlayer(QWidget):
 
+class VideoPlayer(QWidget):
     def __init__(self, theme_background_color, theme_foreground_color):
         super(VideoPlayer, self).__init__()
 
@@ -86,10 +108,16 @@ class VideoPlayer(QWidget):
         self.scene.setBackgroundBrush(QBrush(QColor(0, 0, 0, 255)))
 
         self.graphics_view = QGraphicsView(self.scene)
-        self.graphics_view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.graphics_view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.graphics_view.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.graphics_view.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
         self.graphics_view.setFrameStyle(0)
-        self.graphics_view.setStyleSheet("QGraphicsView {background: transparent; border: 3px; outline: none;}")
+        self.graphics_view.setStyleSheet(
+            "QGraphicsView {background: transparent; border: 3px; outline: none;}"
+        )
 
         self.is_button_press = False
 
@@ -107,7 +135,8 @@ class VideoPlayer(QWidget):
             int(self.panel_padding_x),
             int(self.panel_padding_y),
             int(self.panel_padding_x),
-            int(self.panel_padding_x))
+            int(self.panel_padding_x),
+        )
 
         self.control_panel = ControlPanel()
 
@@ -121,7 +150,9 @@ class VideoPlayer(QWidget):
 
         self.scene.addItem(self.video_item)
         self.scene.addItem(self.control_panel)
-        self.control_panel_proxy_widget = self.scene.addWidget(self.control_panel_widget)
+        self.control_panel_proxy_widget = self.scene.addWidget(
+            self.control_panel_widget
+        )
 
         self.media_player = QMediaPlayer()
         self.audio_output = QAudioOutput()
@@ -131,11 +162,11 @@ class VideoPlayer(QWidget):
         self.media_player.setAudioOutput(self.audio_output)
 
         self.video_need_replay = False
-        self.video_seek_durcation = 10000 # in milliseconds
+        self.video_seek_durcation = 10000  # in milliseconds
 
         self.video_info = None
         self.video_resolution = None
-        self.edit_elements : EditElements = EditElements()
+        self.edit_elements: EditElements = EditElements()
         self.is_play_only_in_clips = False
         self.loop_in_clip = None
         self.url = None
@@ -173,7 +204,6 @@ class VideoPlayer(QWidget):
 
             self.media_player.setPosition(target)
 
-
     def resizeEvent(self, event):
         self.video_item.setSize(QSizeF(event.size().width(), event.size().height()))
 
@@ -181,9 +211,13 @@ class VideoPlayer(QWidget):
         self.control_panel.setPos(0, event.size().height() - self.panel_height)
 
         self.control_panel_widget.resize(event.size().width(), self.panel_height)
-        self.control_panel_proxy_widget.setPos(0, event.size().height() - self.panel_height)
+        self.control_panel_proxy_widget.setPos(
+            0, event.size().height() - self.panel_height
+        )
 
-        self.progress_bar.resize(event.size().width() - self.panel_padding_x * 2, self.progress_bar_height)
+        self.progress_bar.resize(
+            event.size().width() - self.panel_padding_x * 2, self.progress_bar_height
+        )
 
         QWidget.resizeEvent(self, event)
 
@@ -195,17 +229,17 @@ class VideoPlayer(QWidget):
         self.video_resolution = get_video_resolution(self.video_info)
         keyframe_timestamps = get_keyframe_timestamps(self.video_info)
         self.progress_bar.keyframes = keyframe_timestamps
-        set_emacs_var("eaf-video-editor--org-file", url+".org")
+        set_emacs_var("eaf-video-editor--org-file", url + ".org")
 
     def generate_copy_url(self, original_url):
-        '''
+        """
         Generate a new URL based on the provided file URL, with the filename changed to copy_original_filename.
         Parameters:
           - original_url (str): The original file URL
 
         Returns:
           - str: The newly generated URL
-        '''
+        """
         directory, filename = os.path.split(original_url)
         name, ext = os.path.splitext(filename)
         new_filename = f"copy_{name}{ext}"
@@ -234,23 +268,37 @@ class VideoPlayer(QWidget):
     def play_forward(self):
         video_position = self.media_player.position()
         self.media_player.setPosition(video_position + self.video_seek_durcation)
-        message_to_emacs("Forward to: {}%".format(self.media_player.position() / self.media_player.duration() * 100))
+        message_to_emacs(
+            "Forward to: {}%".format(
+                self.media_player.position() / self.media_player.duration() * 100
+            )
+        )
 
     @interactive
     def play_backward(self):
         video_position = self.media_player.position()
-        self.media_player.setPosition(max(video_position - self.video_seek_durcation, 0))
-        message_to_emacs("Forward to: {}%".format(self.media_player.position() / self.media_player.duration() * 100))
+        self.media_player.setPosition(
+            max(video_position - self.video_seek_durcation, 0)
+        )
+        message_to_emacs(
+            "Forward to: {}%".format(
+                self.media_player.position() / self.media_player.duration() * 100
+            )
+        )
 
     @interactive
     def increase_volume(self):
         self.audio_output.setVolume(self.audio_output.volume() + 0.1)
-        message_to_emacs("Increase volume to: {}%".format(self.audio_output.volume() * 100))
+        message_to_emacs(
+            "Increase volume to: {}%".format(self.audio_output.volume() * 100)
+        )
 
     @interactive
     def decrease_volume(self):
         self.audio_output.setVolume(self.audio_output.volume() - 0.1)
-        message_to_emacs("Decrease volume to: {}%".format(self.audio_output.volume() * 100))
+        message_to_emacs(
+            "Decrease volume to: {}%".format(self.audio_output.volume() * 100)
+        )
 
     @interactive
     def restart(self):
@@ -262,11 +310,11 @@ class VideoPlayer(QWidget):
         last_clip = self.edit_elements.last_clip()
         if not last_clip or last_clip.end:
             self.edit_elements.add_clip(self.url, position, None)
-            message_to_emacs(f'Add Clip Begin: {position}')
+            message_to_emacs(f"Add Clip Begin: {position}")
         if last_clip and not last_clip.end:
             last_clip.end = position
             eval_in_emacs("eaf-video-editor--add-clip", last_clip.to_simple())
-            message_to_emacs(f'Add Clip: {last_clip.range_str()}')
+            message_to_emacs(f"Add Clip: {last_clip.range_str()}")
 
         self.progress_bar.clips = self.edit_elements.get_clips()
         self.progress_bar.update()
@@ -274,8 +322,7 @@ class VideoPlayer(QWidget):
     @interactive
     def toggle_play_clips(self):
         self.is_play_only_in_clips = not self.is_play_only_in_clips
-        message_to_emacs(f'Only Play Clips: {self.is_play_only_in_clips}')
-
+        message_to_emacs(f"Only Play Clips: {self.is_play_only_in_clips}")
 
     @interactive
     def loop_play_in_clip(self, clip_begin, clip_end):
@@ -289,17 +336,30 @@ class VideoPlayer(QWidget):
         self.edit_elements.from_emacs(self.url, elements)
         self.update_clips(self.edit_elements.get_clips())
 
-
     @interactive
     def export(self):
+        def run(output, streams):
+            export_streams(output, streams)
+            on_export_complete(output, True, None)
+
+        def on_export_complete(output, success, error):
+            if success:
+                print(f"Successfully generated a new video.: {output}")
+                message_to_emacs(f"Successfully generated a new video.: {output}")
+            else:
+                print(f"Error: {error}")
+                message_to_emacs(f"Error: {error}")
+
         if not self.url:
             return
         message_to_emacs("Start export ...")
-        streams = export_elements_to_streams(self.edit_elements.edit_elements, self.url, self.video_resolution)
+        streams = export_elements_to_streams(
+            self.edit_elements.edit_elements, self.url, self.video_resolution
+        )
         output = self.generate_copy_url(self.url)
-        export_streams(output, streams)
-        # convert_clips_to_video(self.url, output, self.clips)
-        message_to_emacs(f"Successfully generated a new video.: {output}")
+        thread = threading.Thread(target=run, args=(output, streams), daemon=True)
+        thread.start()
+
 
 class ControlPanel(QtWidgets.QGraphicsItem):
     def __init__(self, parent=None):
@@ -322,8 +382,8 @@ class ControlPanel(QtWidgets.QGraphicsItem):
     def boundingRect(self):
         return QRectF(0, 0, self.width, self.height)
 
-class ProgressBar(QWidget):
 
+class ProgressBar(QWidget):
     progress_changed = QtCore.pyqtSignal(float)
 
     def __init__(self, theme_background_color, theme_foreground_color):
@@ -379,7 +439,7 @@ class ProgressBar(QWidget):
                 painter.setBrush(QBrush(Qt.GlobalColor.gray))
                 x1 = int(self.width() * clip.begin / self.duration)
                 x2 = int(self.width() * clip.end / self.duration)
-                painter.drawRect(x1, render_y, x2-x1, int(self.render_height))
+                painter.drawRect(x1, render_y, x2 - x1, int(self.render_height))
             else:
                 painter.setPen(Qt.GlobalColor.green)
                 painter.setBrush(QBrush(Qt.GlobalColor.green))
@@ -392,7 +452,6 @@ class ProgressBar(QWidget):
         painter.setBrush(QBrush(Qt.GlobalColor.red))
         x = int(self.width() * self.position / self.duration)
         painter.drawLine(x, render_y, x, render_y + int(self.render_height))
-
 
     def paintEvent(self, event):
         painter = QPainter(self)

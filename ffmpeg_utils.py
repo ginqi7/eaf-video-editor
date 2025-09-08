@@ -63,7 +63,11 @@ def clips_to_video(input, clip):
 
 
 def export_streams(output_path, streams):
-    merged_stream = ffmpeg.concat(*streams)
+    expanded_streams = []
+    for stream in streams:
+        expanded_streams.append(stream.video)
+        expanded_streams.append(stream.audio)
+    merged_stream = ffmpeg.concat(*expanded_streams, v=1, a=1)
     # Output to new video file
     # , v=1# , a=1
     # v=1 indicates a video stream, and a=1 indicates an audio stream.

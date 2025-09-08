@@ -150,12 +150,12 @@ With optional ARG \\='(16), abbreviate the file name in the link."
 (defun eaf-video-editor-data-from-org-to-editor (&rest _)
   "Update editor data from org mode file."
   (interactive)
-  (when-let ((elements (eaf-video-editor-org-elements))
-             (buffer-id (eaf-video-editor-buffer-id)))
-    (eaf-call-async "execute_function_with_args"
-                    buffer-id
-                    "update_edit_elements" elements)))
-
+  (with-current-buffer (find-file-noselect eaf-video-editor--org-file)
+    (when-let ((elements (eaf-video-editor-org-elements))
+               (buffer-id (eaf-video-editor-buffer-id)))
+      (eaf-call-async "execute_function_with_args"
+                      buffer-id
+                      "update_edit_elements" elements))))
 
 (define-minor-mode eaf-video-editor-mode
   "A minor mode for eaf-video-editor."

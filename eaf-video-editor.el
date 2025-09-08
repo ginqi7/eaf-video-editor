@@ -110,6 +110,16 @@ With optional ARG \\='(16), abbreviate the file name in the link."
   (interactive)
   (eaf-open (expand-file-name (read-file-name "Select a file: ")) "video-editor"))
 
+(defun eaf-video-editor-open-in-org ()
+  "Open an video file to edit."
+  (interactive)
+  (when (equal major-mode 'org-mode)
+    (let* ((org-file (buffer-file-name (current-buffer)))
+           (video-file (substring org-file 0 (- (length org-file) 4))))
+      (when (file-exists-p video-file)
+        (eaf-open video-file "video-editor")))))
+
+
 (defun eaf-video-editor-parse-link (link)
   "Parse org link."
   (let ((type (org-element-property :type link))

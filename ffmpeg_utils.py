@@ -49,7 +49,7 @@ def export_elements_to_streams(
 
 def export_element_to_stream(element, input, resolution):
     if isinstance(element, elements.EditClip):
-        return clips_to_video(input, [element.begin, element.begin])
+        return clips_to_video(input, [element.begin, element.end])
     elif isinstance(element, elements.EditText):
         return text_to_stream(element.text, element.duration, resolution)
     elif isinstance(element, elements.EditImage):
@@ -58,6 +58,7 @@ def export_element_to_stream(element, input, resolution):
 
 def clips_to_video(input, clip):
     start_time, end_time = clip[0] / 1000, clip[1] / 1000
+    print(f"clip: {start_time} -> {end_time}")
     return ffmpeg.input(input, ss=start_time, t=end_time - start_time)
 
 

@@ -3,9 +3,9 @@ from enum import Enum, unique
 
 @unique
 class EditElementType(Enum):
-    CLIP = "eaf-ve-clip"
-    TEXT = "eaf-ve-text"
-    IMAGE = "eaf-ve-image"
+    CLIP = "eve-clip"
+    TEXT = "eve-text"
+    IMAGE = "eve-image"
 
 
 class EditElement:
@@ -74,7 +74,7 @@ class EditElements:
             return clips[0]
 
     def from_emacs(self, video_file: str, elements):
-        # [['eaf-ve-clip', [28062, 36310]], ['eaf-ve-text', ['List Delete or Install a Formula', 1]], ['eaf-ve-clip', [41344, 50448]], ['eaf-ve-clip', [54518, 59552]], ['eaf-ve-clip', [71656, 79903]], ['eaf-ve-text', ['List Installed Taps', 1]], ['eaf-ve-clip', [83116, 87294]], ['eaf-ve-text', ['Operations in Tap', 1]], ['eaf-ve-clip', [99933, 109251]], ['eaf-ve-clip', [88043, 98112]], ['eaf-ve-clip', [112571, 119319]]]
+        # [['eve-clip', [28062, 36310]], ['eve-text', ['List Delete or Install a Formula', 1]], ['eve-clip', [41344, 50448]], ['eve-clip', [54518, 59552]], ['eve-clip', [71656, 79903]], ['eve-text', ['List Installed Taps', 1]], ['eve-clip', [83116, 87294]], ['eve-text', ['Operations in Tap', 1]], ['eve-clip', [99933, 109251]], ['eve-clip', [88043, 98112]], ['eve-clip', [112571, 119319]]]
         self.edit_elements = []
         for element in elements:
             type = EditElementType(element[0])

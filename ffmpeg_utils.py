@@ -73,7 +73,7 @@ def export_streams(output_path, streams):
     # v=1 indicates a video stream, and a=1 indicates an audio stream.
     if os.path.exists(output_path):
         os.remove(output_path)
-    output = ffmpeg.output(merged_stream, output_path)
+    output = ffmpeg.output(merged_stream, output_path, vcodec="libx264", acodec="aac")
     ffmpeg.run(output)
 
 

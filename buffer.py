@@ -229,7 +229,7 @@ class VideoPlayer(QWidget):
         self.video_resolution = get_video_resolution(self.video_info)
         keyframe_timestamps = get_keyframe_timestamps(self.video_info)
         self.progress_bar.keyframes = keyframe_timestamps
-        set_emacs_var("eaf-video-editor--org-file", url + ".org")
+        set_emacs_var("eve--org-file", url + ".org")
 
     def generate_copy_url(self, original_url):
         """
@@ -313,7 +313,7 @@ class VideoPlayer(QWidget):
             message_to_emacs(f"Add Clip Begin: {position}")
         if last_clip and not last_clip.end:
             last_clip.end = position
-            eval_in_emacs("eaf-video-editor--add-clip", last_clip.to_simple())
+            eval_in_emacs("eve--add-clip", last_clip.to_simple())
             message_to_emacs(f"Add Clip: {last_clip.range_str()}")
 
         self.progress_bar.clips = self.edit_elements.get_clips()

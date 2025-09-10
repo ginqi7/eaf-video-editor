@@ -22,7 +22,13 @@
 import os
 import threading
 from core.buffer import Buffer
-from core.utils import interactive, message_to_emacs, eval_in_emacs, set_emacs_var
+from core.utils import (
+    interactive,
+    message_to_emacs,
+    eval_in_emacs,
+    set_emacs_var,
+    get_emacs_var,
+)
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtCore import QEvent, QRectF, QSizeF, Qt, QUrl
 from PyQt6.QtGui import QBrush, QColor, QPainter
@@ -396,6 +402,11 @@ class ProgressBar(QWidget):
         self.render_height = 40
         self.keyframes = []
         self.clips = []
+        self.colors = get_emacs_var("eve-colors-alist")
+        self.colors = {
+            key: value for key, value in zip(self.colors[0::2], self.colors[1::2])
+        }
+        print(self.colors)
 
     def update_progress(self, duration, position):
         self.position = position
@@ -424,32 +435,34 @@ class ProgressBar(QWidget):
 
     def paintKeyFrameLines(self, painter):
         render_y = int((self.height() - self.render_height) / 2)
-
+        color = QColor(self.colors["key-frame"])
         for frame in self.keyframes:
-            painter.setPen(Qt.GlobalColor.gray)
-            painter.setBrush(QBrush(Qt.GlobalColor.gray))
+            painter.setPen(color)
+            painter.setBrush(QBrush(color))
             x = int(self.width() * frame / self.duration)
             painter.drawLine(x, render_y, x, render_y + int(self.render_height))
 
     def paintClips(self, painter):
         render_y = int((self.height() - self.render_height) / 2)
+        color = QColor(self.colors["clip"])
         for clip in self.clips:
             if clip.end:
-                painter.setPen(Qt.GlobalColor.gray)
-                painter.setBrush(QBrush(Qt.GlobalColor.gray))
+                painter.setPen(color)
+                painter.setBrush(color)
                 x1 = int(self.width() * clip.begin / self.duration)
                 x2 = int(self.width() * clip.end / self.duration)
                 painter.drawRect(x1, render_y, x2 - x1, int(self.render_height))
             else:
-                painter.setPen(Qt.GlobalColor.green)
-                painter.setBrush(QBrush(Qt.GlobalColor.green))
+                painter.setPen(color)
+                painter.setBrush(color)
                 x = int(self.width() * clip.begin / self.duration)
                 painter.drawLine(x, render_y, x, render_y + int(self.render_height))
 
     def paintCurrentLine(self, painter):
         render_y = int((self.height() - self.render_height) / 2)
-        painter.setPen(Qt.GlobalColor.red)
-        painter.setBrush(QBrush(Qt.GlobalColor.red))
+        color = QColor(self.colors["play-position"])
+        painter.setPen(color)
+        painter.setBrush(color)
         x = int(self.width() * self.position / self.duration)
         painter.drawLine(x, render_y, x, render_y + int(self.render_height))
 

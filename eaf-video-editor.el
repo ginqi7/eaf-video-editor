@@ -40,6 +40,15 @@
   "The keybinding of EAF Video Editor."
   :type 'cons)
 
+(defcustom eve-colors-alist
+  '("key-frame" "#f9d9b9"
+    "play-position" "#f9b9d0"
+    "clip" "#b9f9c7")
+  "Colors for EAF Video Editor.")
+
+;; ("#f9d9b9" "#b9f4f9" "#f9b9d0" "#b9f9c7" "#ebb9f9" "#e2f9b9" "#b9bef9")
+
+
 (defvar eve--org-file nil)
 
 (defvar eve-module-path

@@ -256,6 +256,7 @@ class VideoPlayer(QWidget):
         if event.type() in [QEvent.Type.MouseButtonPress]:
             self.is_button_press = True
             self.loop_in_clip = None
+            print(event.position())
             self.media_player.pause()
         elif event.type() in [QEvent.Type.MouseButtonRelease]:
             self.is_button_press = False

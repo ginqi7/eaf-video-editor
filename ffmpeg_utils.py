@@ -26,17 +26,22 @@ import elements
 
 def image_to_stream(file: str, time: int, resolution: list[int]):
     width, height = resolution
-    input_stream = ffmpeg.input(file, loop=1, t=time, framerate=30)
-    return input_stream.filter("scale", width, height)
+    video_stream = ffmpeg.input(file, loop=1, t=time, framerate=30).video
+    # 2. Create a silence audio stream of equal length.
+    audio_stream = ffmpeg.input("anullsrc", f="lavfi", t=time).audio
+    return video_stream.filter("scale", width, height), audio_stream
 
 
 def text_to_stream(text: str, time: int, resolution: list[int]):
     width, height = resolution
-    return ffmpeg.input(
+
+    video_stream = ffmpeg.input(
         f"color=c=white:s={width}x{height}:r=30,drawtext=text='{text}':fontcolor=black:fontsize=50:x=(w-tw)/2:y=(h-th)/2",
         f="lavfi",
         t=time,
-    )
+    ).video
+    audio_stream = ffmpeg.input("anullsrc", f="lavfi", t=time).audio
+    return video_stream, audio_stream
 
 
 def export_elements_to_streams(
@@ -49,24 +54,35 @@ def export_elements_to_streams(
 
 def export_element_to_stream(element, input, resolution):
     if isinstance(element, elements.EditClip):
-        return clips_to_video(input, [element.begin, element.end])
+        return clips_to_video(input, element)
     elif isinstance(element, elements.EditText):
         return text_to_stream(element.text, element.duration, resolution)
     elif isinstance(element, elements.EditImage):
         return image_to_stream(element.file, element.duration, resolution)
 
 
-def clips_to_video(input, clip):
-    start_time, end_time = clip[0] / 1000, clip[1] / 1000
+def clips_to_video(input, clip: elements.EditClip):
+    start_time, end_time = clip.begin / 1000, clip.end / 1000
     print(f"clip: {start_time} -> {end_time}")
-    return ffmpeg.input(input, ss=start_time, t=end_time - start_time)
+    stream = ffmpeg.input(input, ss=start_time, t=end_time - start_time)
+    video_stream = stream.video
+    audio_stream = stream.audio
+    for mute in clip.mutes:
+        mute_begin = mute.begin / 1000 - start_time
+        mute_end = mute.end / 1000 - start_time
+        audio_stream = audio_stream.filter(
+            "volume", enable=f"between(t,{mute_begin},{mute_end})", volume=0
+        )
+    return video_stream, audio_stream
 
 
 def export_streams(output_path, streams):
     expanded_streams = []
     for stream in streams:
-        expanded_streams.append(stream.video)
-        expanded_streams.append(stream.audio)
+        if stream:
+            video_stream, audio_stream = stream
+            expanded_streams.append(video_stream)
+            expanded_streams.append(audio_stream)
     merged_stream = ffmpeg.concat(*expanded_streams, v=1, a=1)
     # Output to new video file
     # , v=1# , a=1

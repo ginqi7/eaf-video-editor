@@ -327,6 +327,33 @@ class VideoPlayer(QWidget):
         self.progress_bar.update()
 
     @interactive
+    def mute_point(self):
+        position = self.media_player.position()
+        last_mute = self.edit_elements.last_mute()
+        if not last_mute or last_mute.end:
+            clip = self.edit_elements.search_clip(position)
+            if not clip:
+                message_to_emacs(f"You Should add a mute in a clip : {position}")
+                return
+            self.edit_elements.add_mute(clip, position, None)
+            message_to_emacs(f"Add Mute Begin: {position}")
+        if last_mute and not last_mute.end:
+            clip = last_mute.clip
+            if clip.end < position:
+                message_to_emacs(
+                    f"Mute end: {position} Should in the clip: {clip.range_str()}"
+                )
+                return
+            last_mute.end = position
+            eval_in_emacs("eve--add-mute", last_mute.to_simple())
+            message_to_emacs(f"Add Mute: {last_mute.range_str()}")
+
+        self.progress_bar.clips = self.edit_elements.get_clips()
+        self.progress_bar.mutes = self.edit_elements.get_mutes()
+
+        self.progress_bar.update()
+
+    @interactive
     def toggle_play_clips(self):
         self.is_play_only_in_clips = not self.is_play_only_in_clips
         message_to_emacs(f"Only Play Clips: {self.is_play_only_in_clips}")
@@ -338,10 +365,14 @@ class VideoPlayer(QWidget):
     def update_clips(self, clips):
         self.progress_bar.clips = clips
 
+    def update_mutes(self, mutes):
+        self.progress_bar.mutes = mutes
+
     @interactive
     def update_edit_elements(self, elements):
         self.edit_elements.from_emacs(self.url, elements)
         self.update_clips(self.edit_elements.get_clips())
+        self.update_mutes(self.edit_elements.get_mutes())
 
     @interactive
     def export(self):
@@ -403,6 +434,7 @@ class ProgressBar(QWidget):
         self.render_height = 40
         self.keyframes = []
         self.clips = []
+        self.mutes = []
         self.colors = get_emacs_var("eve-colors-alist")
         self.colors = {
             key: value for key, value in zip(self.colors[0::2], self.colors[1::2])
@@ -459,6 +491,22 @@ class ProgressBar(QWidget):
                 x = int(self.width() * clip.begin / self.duration)
                 painter.drawLine(x, render_y, x, render_y + int(self.render_height))
 
+    def paintMutes(self, painter):
+        render_y = int((self.height() - self.render_height) / 2)
+        color = QColor(self.colors["mute"])
+        for mute in self.mutes:
+            if mute.end:
+                painter.setPen(color)
+                painter.setBrush(color)
+                x1 = int(self.width() * mute.begin / self.duration)
+                x2 = int(self.width() * mute.end / self.duration)
+                painter.drawRect(x1, render_y, x2 - x1, int(self.render_height))
+            else:
+                painter.setPen(color)
+                painter.setBrush(color)
+                x = int(self.width() * mute.begin / self.duration)
+                painter.drawLine(x, render_y, x, render_y + int(self.render_height))
+
     def paintCurrentLine(self, painter):
         render_y = int((self.height() - self.render_height) / 2)
         color = QColor(self.colors["play-position"])
@@ -474,4 +522,5 @@ class ProgressBar(QWidget):
         if self.duration > 0:
             self.paintKeyFrameLines(painter)
             self.paintClips(painter)
+            self.paintMutes(painter)
             self.paintCurrentLine(painter)

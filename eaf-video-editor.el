@@ -34,6 +34,7 @@
     ("f" . "toggle_fullscreen")
     ("r" . "restart")
     ("c" . "clip_point")
+    ("n" . "mute_point")
     ("p" . "toggle_play_clips")
     ("e" . "export"))
 
@@ -43,7 +44,8 @@
 (defcustom eve-colors-alist
   '("key-frame" "#f9d9b9"
     "play-position" "#f9b9d0"
-    "clip" "#b9f9c7")
+    "clip" "#b9f9c7"
+    "mute" "gray")
   "Colors for EAF Video Editor.")
 
 ;; ("#f9d9b9" "#b9f4f9" "#f9b9d0" "#b9f9c7" "#ebb9f9" "#e2f9b9" "#b9bef9")
@@ -61,6 +63,15 @@
     (print begin)
     (insert (format "\n* [[eve-clip:%s-%s]]" begin end))
     (save-buffer)))
+
+(defun eve--add-mute (begin end)
+  "Add an mute to org mode file."
+  (with-current-buffer (find-file-noselect eve--org-file)
+    (goto-char (point-max))
+    (print begin)
+    (insert (format "\n* [[eve-mute:%s-%s]]" begin end))
+    (save-buffer)))
+
 
 (defun eve--find-buffer (url)
   "Find opened buffer by `url'"
@@ -99,6 +110,7 @@
   (with-current-buffer (find-file-noselect eve--org-file)
     (when-let ((elements (eve-org-elements))
                (buffer-id (eve-buffer-id)))
+      ;; (print elements)
       (eaf-call-async "execute_function_with_args"
                       buffer-id
                       "update_edit_elements" elements))))
@@ -142,6 +154,10 @@ With optional ARG \\='(16), abbreviate the file name in the link."
   (let ((lst (string-split path ":")))
     (list (expand-file-name (nth 0 lst)) (string-to-number (nth 1 lst)))))
 
+(defun eve-link-path-to-mute (path)
+  "Convert link path to edit mute."
+  (mapcar #'string-to-number (string-split path "-")))
+
 (defun eve-link-path-to-text (path)
   "Convert link path to edit text."
   (let ((lst (string-split path ":")))
@@ -168,7 +184,8 @@ With optional ARG \\='(16), abbreviate the file name in the link."
     (pcase type
       ("eve-clip" (list type (eve-link-path-to-clip path)))
       ("eve-text" (list type (eve-link-path-to-text path)))
-      ("eve-image" (list type (eve-link-path-to-image path))))))
+      ("eve-image" (list type (eve-link-path-to-image path)))
+      ("eve-mute" (list type (eve-link-path-to-mute path))))))
 
 (defun eve-org-elements ()
   "Get all edit elements in org mode file."
@@ -208,6 +225,8 @@ With optional ARG \\='(16), abbreviate the file name in the link."
                          :complete #'eve-image-org-link-complete-file)
 
 (org-link-set-parameters "eve-text")
+
+(org-link-set-parameters "eve-mute")
 
 
 (provide 'eaf-video-editor)

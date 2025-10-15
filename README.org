@@ -7,7 +7,8 @@ A simple video editor in Emacs.
 - Trim the videos into clips.
 - Sync editor information with an Org mode file.
 - Play the video only in the clips.
-- Add some pure text frames
+- Add some pure text frames.
+- Mute certain audio segments in the video .
 - Export text and clip frames to a new video.
 
 * Load application
